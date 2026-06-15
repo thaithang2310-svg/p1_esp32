@@ -19,7 +19,7 @@ static char *TAG="STATE_BUTTON";
 static void IRAM_ATTR button_isr_handler(void *arg){
     uint64_t now=esp_timer_get_time();
     int debounce=(now-last)/1000;
-    if (debounce>=50){
+    if (debounce>=20){
         last=now;
         led_state^=1;
         gpio_set_level(led_pin,led_state);
