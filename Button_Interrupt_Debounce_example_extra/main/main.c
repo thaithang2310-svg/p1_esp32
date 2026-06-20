@@ -12,10 +12,13 @@
 #define DEBOUNCE_MS 50 // Ở đây là 50ms 
 
 // Các tham số bị hardware điều khiển: 
-static volatile char *TAG="LED_STATE";
-static volatile button_count=0;
+static const char *TAG="LED_STATE";
+static volatile uint32_t button_count=0;
 static volatile uint8_t led_state=0;
 static volatile uint64_t now=0;
+
+// Timer handle buộc phải scope global để hàm callback ISR đọc được 
+esp_timer_handle_t timer_handle=NULL;
 
 // callback blink led (GPIO phải được truyền từ arg chứ không phải void trống)
 void gpio_cb_esp_timer(void *arg){
@@ -30,10 +33,14 @@ void IRAM_ATTR button_cb_iram(void *arg){
     uint32_t gpio_button=(uint32_t)arg;
     uint64_t last=esp_timer_get_time();
     uint64_t debounce=(last-now)/1000;
-    if (debounce>=DEBOUNCE_MS){
-        // ?? blink led theo chu kì periodic là gì
+    // LOGIC DEBOUNCE= NẾU THỜI GIAN ĐỌC CẠNH LÊN NÓ LỚN HƠN THỜI GIAN DEBOUNCE TIME Á --> NHẬN CẠNH ĐÓ LÀM TÍN HIỆU CHUẨN
+    // LOGIC: NẾU SAI THÌ RETURN ĐỂ NGẮT LUÔN/ ĐÚNG THÌ NOW=LAST, THỰC HIỆN 2 CHẾ ĐỘ ĐÓ LÀ 1 LÀ BLINK LED, 2 LÀ TẮT BLINK LED
+    if (debounce<DEBOUNCE_MS) return;
+    now=last;
+    if (esp_timer_is_active(timer_handle)){
+        esp_timer_stop(timer_handle);
     } else {
-        // stop blink kiểu kiểu gì đó để dừng lại việc periodic đó: stop_periodic gì gì đó?
+        esp_timer_start_periodic(timer_handle,200000);
     }
 }
 
@@ -67,10 +74,14 @@ void app_main(void)
         .name="blink_timer",
     };
     // KHAI BÁO: HANDLE vào từ callback bên trên và ISR set vào để chạy periodic 
-    esp_timer_handle_t timer_handle=NULL;
     esp_timer_create(&gpio_pin_cb,&timer_handle);
     // KHAI BÁO: ISR CHO CHÂN BUTTON
     gpio_install_isr_service(0);
-    gpio_isr_handler_add(BUTTON_PIN,button_cb_iram,BUTTON_PIN);
+    gpio_isr_handler_add(BUTTON_PIN,button_cb_iram,(void *)BUTTON_PIN);
     // ACTION LOOP: ACTION + DEBUG BẰNG UART
+    while(1){
+        //DEBUG bằng uart
+        //Button count++
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }
